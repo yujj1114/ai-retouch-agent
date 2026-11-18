@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retouch Agent · AI 修图智能体</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ 顶栏 ============ -->
+  <header id="topbar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 32 32" width="26" height="26" fill="none">
+          <rect x="2" y="2" width="28" height="28" rx="7" fill="url(#lg)"/>
+          <circle cx="11.5" cy="11.5" r="3.2" fill="#fff" opacity=".95"/>
+          <path d="M4 26l8-8 5.5 5.5L24 17l4 4.5V26H4z" fill="#fff" opacity=".85"/>
+          <defs><linearGradient id="lg" x1="0" y1="0" x2="32" y2="32">
+            <stop stop-color="#7c5cff"/><stop offset="1" stop-color="#00d4ff"/>
+          </linearGradient></defs>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Retouch Agent</h1>
+        <span>AI 修图智能体</span>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <button class="tbtn" id="btn-open" title="打开本地图片（也可直接拖入）">
+        <svg viewBox="0 0 20 20" width="15" height="15"><path d="M10 2v10m0 0l-3.5-3.5M10 12l3.5-3.5M3 14v2.5A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V14" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+        打开图片
+      </button>
+      <button class="tbtn" id="btn-create" title="AI 文生图：提示词生成四宫格候选图">
+        <svg viewBox="0 0 20 20" width="15" height="15"><path d="M10 3l1.9 4.1L16 9l-4.1 1.9L10 15l-1.9-4.1L4 9l4.1-1.9L10 3z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/></svg>
+        AI 创作
+      </button>
+      <div class="tbtn-sep"></div>
+      <button class="tbtn icon" id="btn-undo" title="撤销 (Ctrl+Z)" disabled>
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M7 5L3.5 8.5 7 12M3.5 8.5h9a4 4 0 014 4v0a4 4 0 01-4 4H8" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="tbtn icon" id="btn-redo" title="重做 (Ctrl+Shift+Z)" disabled>
+        <svg viewBox="0 0 20 20" width="16" height="16"><path d="M13 5l3.5 3.5L13 12m3.5-3.5h-9a4 4 0 00-4 4v0a4 4 0 004 4h4.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="tbtn-sep"></div>
+      <button class="tbtn" id="btn-compare" title="按住或开启查看修图前后对比">
+        <svg viewBox="0 0 20 20" width="15" height="15"><path d="M10 3v14M10 3L6.5 6.5M10 3l3.5 3.5M10 17l-3.5-3.5M10 17l3.5-3.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+        前后对比
+      </button>
+      <button class="tbtn" id="btn-reset" title="恢复到原图">重置</button>
+      <button class="tbtn primary" id="btn-export" title="导出 PNG">
+        <svg viewBox="0 0 20 20" width="15" height="15"><path d="M10 12V4m0 8l-3.5-3.5M10 12l3.5-3.5M3 13.5V16a1.5 1.5 0 001.5 1.5h11A1.5 1.5 0 0017 16v-2.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+        导出
+      </button>
+    </div>
+  </header>
+
+  <div id="main">
+    <!-- ============ 左栏：工具 + 图层 ============ -->
+    <aside id="leftpanel">
+      <div class="panel-tabs">
+        <button class="ptab active" data-ptab="tools">编辑工具</button>
+        <button class="ptab" data-ptab="layers">图层</button>
+      </div>
+
+      <div class="ptab-page active" id="page-tools">
+        <div id="tool-groups"></div>
+        <div class="registry-note">
+          <span class="dot"></span>
+          工具注册表 <b id="tool-count">0</b> 个 · UI 与 Agent 共用同一套 ToolSpec
+          <button class="link-btn" id="btn-registry">查看</button>
+        </div>
+      </div>
+
+      <div class="ptab-page" id="page-layers">
+        <div id="layer-list"></div>
+        <div class="layer-hint">图层说明：基层承载调色/滤镜/变换；智能抠图后主体保留在基层，背景进入独立背景层；画笔与消除笔自动生成画笔层。</div>
+      </div>
+    </aside>
+
+    <!-- ============ 中间：画布 ============ -->
+    <section id="stage">
+      <div id="canvas-wrap">
+        <canvas id="canvas"></canvas>
+        <div id="dropzone">
+          <div class="dz-inner">
+            <div class="dz-icon">
+              <svg viewBox="0 0 48 48" width="44" height="44" fill="none">
+                <rect x="5" y="8" width="38" height="32" rx="4" stroke="currentColor" stroke-width="2" opacity=".5"/>
+                <circle cx="16" cy="18" r="3.5" stroke="currentColor" stroke-width="2" opacity=".7"/>
+                <path d="M5 34l11-10 8 7 8-8 11 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
+              </svg>
+            </div>
+            <h2>拖入图片，或</h2>
+            <div class="dz-actions">
+              <button class="tbtn" id="dz-open">打开本地图片</button>
+              <button class="tbtn" id="dz-create">AI 创作</button>
+            </div>
+            <div class="dz-samples">
+              <span>没有素材？试试示例图：</span>
+              <button class="sample-chip" data-sample="0">山间晨曦</button>
+              <button class="sample-chip" data-sample="1">日落海湾</button>
+              <button class="sample-chip" data-sample="2">人像剪影</button>
+            </div>
+          </div>
+        </div>
+        <div id="brush-cursor"></div>
+      </div>
+      <div id="brush-bar" hidden>
+        <span class="bb-name" id="bb-name">笔刷</span>
+        <label class="bb-field">大小<input type="range" id="bb-size" min="4" max="300" step="2" value="60"><output id="bb-size-out">60</output></label>
+        <label class="bb-field" id="bb-strength-field">强度<input type="range" id="bb-strength" min="5" max="100" step="5" value="50"><output id="bb-strength-out">50</output></label>
+        <span class="bb-tip">快捷键 [ ] 调整大小</span>
+        <button class="tbtn" id="bb-exit">退出画笔</button>
+      </div>
+      <div id="stage-status">
+        <span id="st-size">—</span>
+        <span class="sep"></span>
+        <span id="st-zoom">100%</span>
+        <span class="sep"></span>
+        <span id="st-tool">就绪</span>
+      </div>
+    </section>
+
+    <!-- ============ 右栏：Agent ============ -->
+    <aside id="agentpanel">
+      <div class="agent-head">
+        <div class="agent-avatar">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+            <rect x="4" y="7" width="16" height="12" rx="3" stroke="currentColor" stroke-width="1.7"/>
+            <circle cx="9" cy="13" r="1.4" fill="currentColor"/><circle cx="15" cy="13" r="1.4" fill="currentColor"/>
+            <path d="M12 7V4m-4 0h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="agent-title">
+          <b>修图 Agent</b>
+          <span>规划 → 校验 → 执行 → 反馈</span>
+        </div>
+        <button class="model-btn" id="btn-settings" title="模型设置">
+          <span class="md-dot" id="mode-dot"></span>模型
+        </button>
+      </div>
+
+      <div id="chat" class="chat">
+        <div class="msg agent">
+          <div class="bubble">
+            <p>你好，我是你的修图助手 ✦</p>
+            <p>直接用一句话告诉我你想怎么修图，比如：</p>
+            <ul>
+              <li>「把背景换成海边，人物亮点」</li>
+              <li>「提高亮度和饱和度，再加点胶片感」</li>
+              <li>「裁剪成 1:1，旋转一下」</li>
+            </ul>
+            <p>我会自动<b>规划步骤 → 校验计划 → 调用工具执行</b>。先从右侧打开一张图片试试吧。</p>
+            <p style="font-size:12px;color:var(--txt-2)">当前使用内置引擎（规则规划 + 程序生成，零费用）。点右上角 <b>模型</b> 填入 API Key 即可启用真实模型。</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="chat-input">
+        <div id="quick-chips">
+          <button class="chip">把背景换成海边</button>
+          <button class="chip">提高亮度和饱和度</button>
+          <button class="chip">加一点胶片感</button>
+          <button class="chip">抠出主体</button>
+          <button class="chip">消除路人</button>
+        </div>
+        <div class="input-row">
+          <textarea id="inp" rows="1" placeholder="输入修图指令，如：亮一点，暖一些，背景虚化…"></textarea>
+          <button id="btn-send" title="发送">
+            <svg viewBox="0 0 20 20" width="17" height="17"><path d="M3 10l14-6-5.5 14L10 12.5 3 10z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ============ 弹窗：AI 创作（文生图） ============ -->
+<div class="modal-mask" id="modal-create">
+  <div class="modal">
+    <div class="modal-head">
+      <b>AI 创作 · 文生图</b>
+      <button class="modal-close" data-close="modal-create">×</button>
+    </div>
+    <p class="modal-desc">输入提示词，生成 4 张候选图，选中后进入编辑器。本地模式为程序生成；切换真实模型后由 DashScope 文生图生成。</p>
+    <div class="modal-row">
+      <input id="create-prompt" type="text" value="夕阳下的海边雪山" placeholder="描述你想要的画面…">
+      <button class="tbtn primary" id="btn-generate">生成</button>
+    </div>
+    <div class="create-grid" id="create-grid"></div>
+  </div>
+</div>
+
+<!-- ============ 弹窗：工具注册表 ============ -->
+<div class="modal-mask" id="modal-registry">
+  <div class="modal wide">
+    <div class="modal-head">
+      <b>工具注册表 ToolRegistry</b>
+      <button class="modal-close" data-close="modal-registry">×</button>
+    </div>
+    <p class="modal-desc">与原项目一致：所有工具一处定义，UI 按钮调用与 Agent 调用走同一条执行路径（<code>Editor.applyTool</code>），参数校验逻辑不漂移。</p>
+    <div id="registry-list"></div>
+  </div>
+</div>
+
+<!-- ============ 弹窗：模型配置 ============ -->
+<div class="modal-mask" id="modal-settings">
+  <div class="modal">
+    <div class="modal-head">
+      <b>模型配置</b>
+      <button class="modal-close" data-close="modal-settings">×</button>
+    </div>
+    <p class="modal-desc">填入 API Key 即启用真实模型（规划 + 文生图）；未配置时自动使用内置引擎（规则规划 + 程序生成，零费用）。</p>
+    <div class="set-group show" id="set-model">
+      <div class="set-row"><label>API Key</label><input type="password" id="set-apikey" placeholder="sk-..." autocomplete="off"></div>
+      <div class="set-row"><label>接口地址</label><input type="text" id="set-baseurl" placeholder="https://.../compatible-mode/v1"></div>
+      <div class="set-row"><label>规划模型</label><input type="text" id="set-planner" placeholder="qwen-plus"></div>
+      <div class="set-row"><label>生图模型</label><input type="text" id="set-imagemodel" placeholder="qwen-image"></div>
+      <div class="set-row"><label>生图尺寸</label><input type="text" id="set-imagesize" placeholder="1024x1024"></div>
+      <p class="set-hint">Key 仅保存在本机浏览器 localStorage，请勿在公共电脑使用。调用若被 CORS 拦截，请勾选下方「通过本地代理转发」。</p>
+      <label class="set-check"><input type="checkbox" id="set-useproxy"> 通过本地代理转发（Key 放代理服务端 <code>.env</code>，最安全）</label>
+      <div id="set-proxy">
+        <div class="set-row"><label>代理地址</label><input type="text" id="set-proxyurl" placeholder="http://127.0.0.1:8619"></div>
+        <p class="set-hint">启动方式：项目根目录执行 <code>node server/proxy.js</code>。勾选后由代理使用服务端 Key，上方 Key 字段不生效。</p>
+      </div>
+    </div>
+    <div class="pc-actions">
+      <button class="tbtn" id="btn-test-conn">测试连接</button>
+      <button class="tbtn primary" id="btn-save-settings">保存</button>
+    </div>
+    <div id="test-result"></div>
+  </div>
+</div>
+
+<!-- 工具参数浮层 -->
+<div id="tool-pop" class="tool-pop" hidden></div>
+
+<input type="file" id="file-input" accept="image/*" hidden>
+
+<script src="src/tools.js"></script>
+<script src="src/samples.js"></script>
+<script src="src/llm.js"></script>
+<script src="src/agent.js"></script>
+<script src="src/editor.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
